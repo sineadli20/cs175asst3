@@ -1,0 +1,15 @@
+*
+!*.*
+!.gitignore
+!*/
+!AUTHORS
+!LICENSE
+!Makefile
+!*-solution*
+
+*.o
+*~
+.clang-format
+*.tex
+*.aux
+*.log
