@@ -191,9 +191,24 @@ static shared_ptr<Geometry> g_ground, g_cube;
 static const Cvec3 g_light1(2.0, 3.0, 14.0),
     g_light2(-2, -3.0, -5.0); // define two lights positions in world space
 static Matrix4 g_skyRbt = Matrix4::makeTranslation(Cvec3(0.0, 0.25, 4.0));
-static Matrix4 g_objectRbt[1] = {Matrix4::makeTranslation(
-    Cvec3(0, 0, 0))}; // currently only 1 obj is defined
-static Cvec3f g_objectColors[1] = {Cvec3f(1, 0, 0)};
+static Matrix4 g_objectRbt[2] = 
+    {
+        Matrix4::makeTranslation(Cvec3(-1, 0, 0)),
+        Matrix4::makeTranslation(Cvec3(1, 0, 0))
+    }; 
+// currently only 1 obj is defined -> now 2 objs are defined!
+static Cvec3f g_objectColors[2] = 
+    {
+        Cvec3f(1, 0, 0),
+        Cvec3f(0, 0, 1)
+    };
+
+
+// ----------- More Scene
+
+static int currentView = 0;
+static int currentObj = 0;
+static int currentMode = 0;
 
 ///////////////// END OF G L O B A L S
 /////////////////////////////////////////////////////
@@ -268,8 +283,15 @@ static void drawStuff() {
     const Matrix4 projmat = makeProjectionMatrix();
     sendProjectionMatrix(curSS, projmat);
 
+    Matrix4 eyeRbt;
     // use the skyRbt as the eyeRbt
-    const Matrix4 eyeRbt = g_skyRbt;
+    if(currentView == 0) // sky
+        eyeRbt = g_skyRbt;
+    else if(currentView == 1) // object1
+        eyeRbt = g_objectRbt[0];
+    else // object2
+        eyeRbt = g_objectRbt[1];
+
     const Matrix4 invEyeRbt = inv(eyeRbt);
 
     const Cvec3 eyeLight1 = Cvec3(
@@ -296,6 +318,13 @@ static void drawStuff() {
     sendModelViewNormalMatrix(curSS, MVM, NMVM);
     safe_glUniform3f(curSS.h_uColor, g_objectColors[0][0], g_objectColors[0][1],
                      g_objectColors[0][2]);
+    g_cube->draw(curSS);
+
+    MVM = invEyeRbt * g_objectRbt[1];
+    NMVM = normalMatrix(MVM);
+    sendModelViewNormalMatrix(curSS, MVM, NMVM);
+    safe_glUniform3f(curSS.h_uColor, g_objectColors[1][0], g_objectColors[1][1],
+                     g_objectColors[1][2]);
     g_cube->draw(curSS);
 }
 
@@ -324,22 +353,86 @@ static void motion(GLFWwindow *window, double x, double y) {
     const double dy = g_windowHeight - y - 1 - g_mouseClickY;
 
     Matrix4 m;
+    Matrix4 mx, my;
+    bool isTranslation;
+
     if (g_mouseLClickButton && !g_mouseRClickButton &&
         !g_spaceDown) { // left button down?
         m = Matrix4::makeXRotation(-dy) * Matrix4::makeYRotation(dx);
+        mx = Matrix4::makeXRotation(dy);
+        my = Matrix4::makeYRotation(-dx);
+        isTranslation = 0;
     } else if (g_mouseRClickButton &&
                !g_mouseLClickButton) { // right button down?
-        m = Matrix4::makeTranslation(Cvec3(dx, dy, 0) * 0.01);
+        if(currentObj == 0)
+            m = Matrix4::makeTranslation(Cvec3(-dx, -dy, 0) * 0.01); // is sky
+        else 
+            m = Matrix4::makeTranslation(Cvec3(dx, dy, 0) * 0.01); // is cube
+        isTranslation = 1;
     } else if (g_mouseMClickButton ||
                (g_mouseLClickButton && g_mouseRClickButton) ||
                (g_mouseLClickButton && !g_mouseRClickButton &&
                 g_spaceDown)) { // middle or (left and right, or left + space)
                                 // button down?
-        m = Matrix4::makeTranslation(Cvec3(0, 0, -dy) * 0.01);
+        if(currentObj == 0)
+            m = Matrix4::makeTranslation(Cvec3(0, 0, dy) * 0.01); // is sky
+        else
+            m = Matrix4::makeTranslation(Cvec3(0, 0, -dy) * 0.01); // is cube
+        isTranslation = 1;
     }
 
+    Matrix4 a;
+    Matrix4 i; // identity matrix
+
     if (g_mouseClickDown) {
-        g_objectRbt[0] *= m; // Simply right-multiply is WRONG
+        // g_objectRbt[0] *= m; // Simply right-multiply is WRONG
+
+        if(currentView == 0) // current view is NOT a cube aka. current view is sky -> then manipulation is allowed
+        {
+            if(currentObj == 1) // red cube
+            {
+                a = transFact(g_objectRbt[0]) * linFact(g_skyRbt);
+                g_objectRbt[0] = a * m * inv(a) * g_objectRbt[0];
+            } else if (currentObj == 2) // blue cube
+            {
+                a = transFact(g_objectRbt[1]) * linFact(g_skyRbt);
+                g_objectRbt[1] = a * m * inv(a) * g_objectRbt[1];
+            } else // sky cube
+            {
+                if(currentMode == 1) // ego-motion
+                {
+                    if(isTranslation == 1)
+                    {
+                        a = g_skyRbt;
+                        g_skyRbt = a * m * inv(a) * g_skyRbt;
+                    }
+                    else
+                    {
+                    a = transFact(g_skyRbt);
+                    g_skyRbt = a * my * inv(a) * g_skyRbt;
+
+                    a = g_skyRbt;
+                    g_skyRbt = a * mx * inv(a) * g_skyRbt;
+                    }
+                }
+                else // 0 = orbit
+                {
+                    if(isTranslation == 1)
+                    {
+                        a = g_skyRbt;
+                        g_skyRbt = a * m * inv(a) * g_skyRbt;
+                    }
+                    else
+                    {
+                        a = i;
+                        g_skyRbt = a * my * inv(a) * g_skyRbt;
+
+                        a = linFact(g_skyRbt);
+                        g_skyRbt = a * mx * inv(a) * g_skyRbt;
+                    }
+                }
+            }
+        }
     }
 
     g_mouseClickX = x;
@@ -390,6 +483,37 @@ static void keyboard(GLFWwindow* window, int key, int scancode, int action, int 
         case GLFW_KEY_SPACE:
             g_spaceDown = true;
             break;
+        case GLFW_KEY_O:
+            currentObj++;
+            currentObj = currentObj%3;
+            if(currentObj == 0){
+                cout << "Active object is Sky\n";
+            } else if (currentObj == 1){
+                cout << "Active object is Object 0\n";
+            } else {
+                cout << "Active object is Object 1\n";
+            }
+            break;
+        case GLFW_KEY_V:
+            currentView++;
+            currentView = currentView%3;
+            if(currentView == 0){
+                cout << "Active eye is Sky\n";
+            } else if (currentView == 1){
+                cout << "Active eye is Object 0\n";
+            } else {
+                cout << "Active eye is Object 1\n";
+            }
+            break;
+
+        case GLFW_KEY_M:
+        currentMode++;
+        currentMode = currentMode%2;
+        if(currentMode == 1)
+            cout << "Editing sky eye w.r.t. sky-sky frame\n";
+        else 
+            cout << "Editing sky eye w.r.t. world-sky frame\n";
+        break;
         }
     } else {
         switch (key) {

@@ -37,24 +37,4 @@
       <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>
-  <ItemGroup>
-    <None Include="shaders\basic-gl3.vshader">
-      <Filter>Shaders</Filter>
-    </None>
-    <None Include="shaders\diffuse-gl3.fshader">
-      <Filter>Shaders</Filter>
-    </None>
-    <None Include="shaders\solid-gl3.fshader">
-      <Filter>Shaders</Filter>
-    </None>
-    <None Include="shaders\basic-gl2.vshader">
-      <Filter>Shaders</Filter>
-    </None>
-    <None Include="shaders\diffuse-gl2.fshader">
-      <Filter>Shaders</Filter>
-    </None>
-    <None Include="shaders\solid-gl2.fshader">
-      <Filter>Shaders</Filter>
-    </None>
-  </ItemGroup>
 </Project>
